@@ -1,0 +1,200 @@
+---
+title: "Assignmnet 7"
+output: html_notebook
+---
+
+Load neccessary packges:
+```{r}
+library(pacman)
+p_load(tidyverse, magrittr, psych, caret, readxl, MASS)
+```
+Load the data sets:
+Italian wines: italianwines.csv
+Portuguese wines: winedata.xlsx
+```{r}
+italwines <- read.csv("../assignment_7/data/italianwines.csv")
+portwines <- read_excel("../assignment_7/data/Wine_data.xlsx")
+```
+Italian wines: classify wine region and vintage on the basis of chemical properties of the wine
+Hue: hue of wine
+Wine: geographic origin of the wine
+Question 1a:
+Predict italian wine type according to its physical properties
+
+Step 1:
+Descriptive data
+```{r}
+table(italwines$wine)
+```
+There are 3 type of wine: Barbera, Barolo, and Grignolino. There is an unequal sampling of each type.
+```{r}
+describewine <- describeBy(italwines, group = italwines$wine)
+describewine
+
+```
+The above are summary tables of the variables by wine type (Barbera, Barolo, and Grignolino respectively)
+Observations:
+
+1.There are no missing values for any of the variables
+
+2: There are some problems with skewness and kurtosis, outlined below
+
+Barbera: 
+Sugar - skew = 1.55; kurtosis = 4.70*
+Proanthocyanins - skew = 1.48; kurtosis = 3.16*
+
+Barolo:
+Malic - skew = 2.03*; kurtosis = 2.84*
+Chloride - 4.90*; 27.40*
+
+Grignolino:
+Tartaric - skew = 1.13; kurtosis = 2.59*
+Malic - skew = 1.56; kurtosis = 2.21*
+Magnesium - skew = 2.03*; kurtosis = 4.46*
+Chloride - skew = 3.35*; kurtosis = 17.48*
+Flavanoids - skew = 1.12; kurtosis = 3.15*
+Glycerol - skew = 1.21; kurtosis = 4.70*
+
+There are 27 potential predictors. A series of boxplots should indicate which variables are most diffrentiated across the wine types, and thus may be useful as differential predictors.
+```{r}
+italwines %>%
+ggplot(mapping = aes(y = alcohol, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = sugar, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = acidity, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = tartaric, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = malic, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = uronic, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = pH, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = ash, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = alcal_ash, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = potassium, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = calcium, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = magnesium, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = phosphate, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = chloride, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = phenols, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = flavanoids, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = nonflavanoids, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = proanthocyanins, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = colour, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = hue, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = OD_dw, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = OD_fl, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = glycerol, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = butanediol, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = nitrogen, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = proline, x = wine))+
+  geom_boxplot()
+italwines%>%
+ggplot(mapping = aes(y = methanol, x = wine))+
+  geom_boxplot()
+```
+Findings:
+Alcohol appears to be a good predictor. All 3 groups show acceptable distribution, with only a few outliers for the Grignolino type. There is little overlap of the IQRs across the groups
+Sugar does not seem to be a good predictor, as the mean sugar for Barbera and Grignolino is very similar
+Acidity does not seem to be a good predictor, due to the overlap between Barolo and Grignolino. The same applies for tartaric, malic, and uronic - Barolo and Grignolino are very similar on these measures
+pH does not seem like a good predictor, as there is major overlap across the wine types. The same holds true for ash, alcal_ash, potassium, calcium, magnesium, phosphate, chloride
+Phenols appears to be a good predictor. All 3 groups have an acceptable distribution, with only a few outliers for the Barbera and Barolo groups. The means are very different and there is little overlap between IQRs.The same applies to flavanoids (although there is mild kurtosis with Grignolino)
+There is too much overlap with nonflavanoids, proanthocyanins
+Colour appears to be a good predictor (for the reasons listed above)
+There is too much overlap with hue, OD_dw, OD_fl, glycerol, butanediol, nitrogen, proline, and methanol
+
+Summary:
+Alcohol, phenols, flavanoids, and colour appear to be well differentiated acoss the groups, and seem to be good predictors
+
+LDA: for a linear discriminant anlysis I would first run a model with all the prdictors
+```{r}
+ital_lda1 <- lda(wine ~ ., data = italwines)
+ital_lda1predict <- predict(ital_lda1)
+confusionMatrix(as.factor(ital_lda1predict$class), as.factor(italwines$wine), 
+                positive = c("1"))
+italwinesforsigtest <- italwines %>%   
+                        dplyr::select(alcohol, sugar, acidity, tartaric, malic, uronic, pH, ash, alcal_ash, potassium, calcium, magnesium, phosphate, chloride, phenols, flavanoids, nonflavanoids, proanthocyanins, colour, hue, OD_dw, OD_fl, glycerol, butanediol, nitrogen, proline, methanol)
+italwinesforsigtest <- as.matrix(italwinesforsigtest)
+summary(manova(italwinesforsigtest ~ italwines$wine), test = "Wilks")
+```
+From this attempt we can see that the variables are collinear.
+The confusion matrix indicates that (with this model) Barbera is predicted correctly most of the time, while approximately 14% of Barolo cases are mistakenly predicted as Grignolino cases, and a very small amount of Grignolino cases are mistakenly predicted as Barolo cases.
+The accuracy is excellent - 93% of wines samples are correctly classified by this model, which is 53% better than the no-information rate (40%). This model is highly significant. 
+Specificity and sensitivity is high for all wine types. Barolo has the lowest sensitivity, which confirms our previous observation that a fair amount of BArolo grapes were mistakenly classified as Grignolino.
+
+
+
+
+Next we try a LDA with only the variables that seem to be good predictors from the descriptive stats
+```{r}
+ital_lda2 <- lda(wine ~ alcohol + phenols + flavanoids + colour, data = italwines)
+ital_lda2
+ital_lda2predict <- predict(ital_lda2)
+confusionMatrix(as.factor(ital_lda2predict$class), as.factor(italwines$wine), 
+                positive = c("1"))
+italwinesforsigtest2 <- italwines %>%   
+                        dplyr::select(alcohol, phenols, flavanoids, colour)
+italwinesforsigtest2 <- as.matrix(italwinesforsigtest2)
+summary(manova(italwinesforsigtest2 ~ italwines$wine), test = "Wilks")
+```
+From the above LDA we can see that the first linear discriminant function (LD1) is much better than the second (LD2)
+The confusion matrix indicates that classification has remained mostly accurate for Barbera, but it has become more accurate for Barolo, and slightly less accurate for Grignolino. 
+The model overall has remarkably become slightly more accurate (from 93% to 94%), after the removal of 23 predictors! 
+Sensitivity and specificity is still high for all groups (now all above 90%), and the model overall is highly significant.
+
+We must still be aware of the problem of overfitting, so ideally we would use test/training groups or some form of cross-validation. LDA has cross-validation built into the function, so let's go with that
+```{r}
+ital_lda3 <- lda(wine ~ alcohol + phenols + flavanoids + colour, data = italwines, CV = TRUE)
+confusionMatrix(ital_lda3$class, italwines$wine)
+```
+There is a minor drop in accuracy (94% to 93%), but the model is still excellent. 
+This suggests that wine type (Barbera, Barolo, or Grignolino) can be predicted quite accurately by just 4 physical characteristics: alcohol, phenols, flavanoids, and color.
+
+Now to compare this simple approach to other approaches:
+
