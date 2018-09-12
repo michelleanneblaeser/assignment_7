@@ -6,14 +6,14 @@ output: html_notebook
 Load neccessary packges:
 ```{r}
 library(pacman)
-p_load(tidyverse, magrittr, psych, caret, readxl, MASS)
+p_load(tidyverse, magrittr, psych, caret, readxl, MASS, tree, Metrics)
 ```
 Load the data sets:
 Italian wines: italianwines.csv
 Portuguese wines: winedata.xlsx
 ```{r}
-italwines <- read.csv("../assignment_7/data/italianwines.csv")
-portwines <- read_excel("../assignment_7/data/Wine_data.xlsx")
+italwines <- read.csv("../data/italianwines.csv")
+portwines <- read_excel("../data/Wine_data.xlsx")
 ```
 Italian wines: classify wine region and vintage on the basis of chemical properties of the wine
 Hue: hue of wine
@@ -154,7 +154,8 @@ Alcohol, phenols, flavanoids, and colour appear to be well differentiated acoss 
 
 LDA: for a linear discriminant anlysis I would first run a model with all the prdictors
 ```{r}
-ital_lda1 <- lda(wine ~ ., data = italwines)
+ital_lda1 <- lda(wine ~ alcohol + sugar + acidity + tartaric + malic + uronic + pH + ash + alcal_ash + potassium + calcium + magnesium + phosphate + chloride + phenols + flavanoids + nonflavanoids + proanthocyanins + colour + hue + OD_dw + OD_fl + glycerol + butanediol + nitrogen + proline + methanol, data = italwines)
+ital_lda1
 ital_lda1predict <- predict(ital_lda1)
 confusionMatrix(as.factor(ital_lda1predict$class), as.factor(italwines$wine), 
                 positive = c("1"))
@@ -163,13 +164,9 @@ italwinesforsigtest <- italwines %>%
 italwinesforsigtest <- as.matrix(italwinesforsigtest)
 summary(manova(italwinesforsigtest ~ italwines$wine), test = "Wilks")
 ```
-From this attempt we can see that the variables are collinear.
-The confusion matrix indicates that (with this model) Barbera is predicted correctly most of the time, while approximately 14% of Barolo cases are mistakenly predicted as Grignolino cases, and a very small amount of Grignolino cases are mistakenly predicted as Barolo cases.
-The accuracy is excellent - 93% of wines samples are correctly classified by this model, which is 53% better than the no-information rate (40%). This model is highly significant. 
-Specificity and sensitivity is high for all wine types. Barolo has the lowest sensitivity, which confirms our previous observation that a fair amount of BArolo grapes were mistakenly classified as Grignolino.
-
-
-
+From this attempt we can see that the variables are collinear. 
+LD function 1 (LD1) is better than LD function 2 (LD2)
+The accuracy is perfect - 100% of wines samples are correctly classified by this model, which is 60% better than the no-information rate (40%). This model is highly significant. Specificity and sensitivity is perfect for all wine types. 
 
 Next we try a LDA with only the variables that seem to be good predictors from the descriptive stats
 ```{r}
@@ -184,9 +181,9 @@ italwinesforsigtest2 <- as.matrix(italwinesforsigtest2)
 summary(manova(italwinesforsigtest2 ~ italwines$wine), test = "Wilks")
 ```
 From the above LDA we can see that the first linear discriminant function (LD1) is much better than the second (LD2)
-The confusion matrix indicates that classification has remained mostly accurate for Barbera, but it has become more accurate for Barolo, and slightly less accurate for Grignolino. 
-The model overall has remarkably become slightly more accurate (from 93% to 94%), after the removal of 23 predictors! 
-Sensitivity and specificity is still high for all groups (now all above 90%), and the model overall is highly significant.
+The confusion matrix indicates that classification has remained mostly accurate for Barbera, but it has become less accurate for BArolo, and much less accurate Grignolino. 
+The model overall has remarkably become only slightly less accurate (from 100% to 94%), after the removal of 23 predictors! 
+Sensitivity and specificity is still high for all groups (all above 90%), and the model overall is highly significant.
 
 We must still be aware of the problem of overfitting, so ideally we would use test/training groups or some form of cross-validation. LDA has cross-validation built into the function, so let's go with that
 ```{r}
@@ -197,4 +194,11 @@ There is a minor drop in accuracy (94% to 93%), but the model is still excellent
 This suggests that wine type (Barbera, Barolo, or Grignolino) can be predicted quite accurately by just 4 physical characteristics: alcohol, phenols, flavanoids, and color.
 
 Now to compare this simple approach to other approaches:
+Classifcation tree
+```{r}
+italtree1 = tree(as.factor(wine) ~ alcohol + sugar + acidity + tartaric + malic + uronic + pH + ash + alcal_ash + potassium + calcium + magnesium + phosphate + chloride + phenols + flavanoids + nonflavanoids + proanthocyanins + colour + hue + OD_dw + OD_fl + glycerol + butanediol + nitrogen + proline + methanol, data = italwines)
+plot(italtree1)
+text(italtree1, pretty = 1)
+summary(italtree1)
+```
 
