@@ -6,7 +6,7 @@ output: html_notebook
 Load neccessary packges:
 ```{r}
 library(pacman)
-p_load(tidyverse, magrittr, psych, caret, readxl, MASS, tree)
+p_load(tidyverse, magrittr, psych, caret, readxl, MASS, tree, randomForest, gbm)
 ```
 Load the data sets:
 Italian wines: italianwines.csv
@@ -205,7 +205,11 @@ Step 3A: Classifcation tree
 italtree1 = tree(as.factor(wine) ~ alcohol + sugar + acidity + tartaric + malic + uronic + pH + ash + alcal_ash + potassium + calcium + magnesium + phosphate + chloride + phenols + flavanoids + nonflavanoids + proanthocyanins + colour + hue + OD_dw + OD_fl + glycerol + butanediol + nitrogen + proline + methanol, data = italwines)
 plot(italtree1)
 text(italtree1, pretty = 1)
+
 summary(italtree1)
+
+predict.italtree1 = predict(italtree1, type = "class")
+confusionMatrix(as.factor(predict.italtree1), as.factor(italwines$wine))
 ```
 The classification tree classifies wine type based on 5 physical characteristics: flavanoids, colour, malic, proline, and alcohol. 
 [I noted that the variable "malic" has a bit of a problematic distributions for the groups: Barolo (skew = 2.03*; kurtosis = 2.84*), and Grignolino (skew = 1.56; kurtosis = 2.21*).There are also a fair amount of outliers for the "malic variable" in the groups: Barolo (8/59 observations are outliers), and Grignolino (5/71 observations are outliers). I would be hesitant to include this variable in the final model. And the variable "flavanoids" has a bit of a problematic distribution for Grignolino (skew = 1.12; kurtosis = 3.15), but on visual inspection of the boxplot it seems fine, and it only has 1 outlier]
@@ -213,7 +217,7 @@ The classification tree classifies wine type based on 5 physical characteristics
 The classification tree model (5 physical characteristics: flavanoids, colour, malic, proline, and alcohol) has a fair degree of overlap (3 variables) with the linear discriminant model we arrived at previously (4 physical characteristics: alcohol, phenols, flavanoids, and color).
 The misclassification error rate for the classification tree model is 3/178 (2%), while the misclassification error rate for the proposed lda model (without cross validation) was 11/178 (6%)
 
-The better model is derived from the classification tree, we began with many variables of unknown importance, and it is possible to miss good predictor variables when manually choosing which ones to include in the lda (based off summary stats and exploratory graphs).
+The better model is derived from the classification tree (98% accuracy and highly significant). We began with many variables of unknown importance, and it is possible to miss good predictor variables when manually choosing which ones to include in the lda (based off summary stats and exploratory graphs).
 If the lda is rerun with the predictor variables selected by the classification tree:
 ```{r}
 ital_lda4 <- lda(wine ~ flavanoids + colour + malic + proline + alcohol, data = italwines)
@@ -227,8 +231,8 @@ By using the varibles selected by the classification tree, we can improve our LD
 However, if we compare the misclassification error rate of the classification tree (3/178; with 5 variables) to the misclassification rate of the lda (5/178; with the same 5 variables) - we see that the classification tree makes less classification errors. 
 
 The above section of analysis indicates that:
-a) The classification tree approach leads to a more accurate selection of predictor variables
-b) THe classification tree approach makes less classification errors than a lda model with the same variables
+a) The classification tree approach leads to a slightly more accurate selection of predictor variables
+b) THe classification tree approach makes less classification errors than a lda model with the same variables (with accuracy rates of 98% and 97% respectively)
 
 It is important to note that both of these methods are vulnerable to overfitting, and the classification tree may make less errors because of a greater degree of overfitting than the lda. We will have to compare these methods again once some form of cross validation has been introduced
 
@@ -244,8 +248,14 @@ Then, we build a classification tree model on the training data
 italtrain.tree <- tree(as.factor(wine) ~ alcohol + sugar + acidity + tartaric + malic + uronic + pH + ash + alcal_ash + potassium + calcium + magnesium + phosphate + chloride + phenols + flavanoids + nonflavanoids + proanthocyanins + colour + hue + OD_dw + OD_fl + glycerol + butanediol + nitrogen + proline + methanol, data = italtrain)
 plot(italtrain.tree)
 text(italtrain.tree, pretty = 1)
+
 summary(italtrain.tree)
+
+predict.italtrain.tree = predict(italtrain.tree, type = "class")
+confusionMatrix(as.factor(predict.italtrain.tree), as.factor(italtrain$wine))
 ```
+The unpruned model built on the training data has a misclassification error rate of 7/134 (5%), thus an accuracy rate of 95%.
+
 Determine alpha through cross validation
 ```{r}
 cv.italtrain.tree <- cv.tree(italtrain.tree)
@@ -256,18 +266,20 @@ We prune the tree according to the alpha we obtained above (alpha = 4, as a clas
 prune.italtrain.tree =prune.tree(italtrain.tree, best = 4)
 plot(prune.italtrain.tree)
 text(prune.italtrain.tree, pretty = 1)
+
 summary(prune.italtrain.tree)
+
+predict.prune.italtrain.tree = predict(prune.italtrain.tree, type = "class")
+confusionMatrix(as.factor(predict.prune.italtrain.tree), as.factor(italtrain$wine))
 ```
-The pruned tree consists of 3 predictor variables: proline, OD_dw, and flavanoids. They all have good distributions (besides fro the abovementioned small concern over flavanoids in the Grignolino group mentioned above), and have very few outliers.
-The misclassification error rate of the pruned (3 variable) tree is 8/134 (6%), which is similar to the misclassification rate of the unpruned tree (7/134; 5%). This is not a large drop in accuracy, given that the pruned tree has one less variable
+The pruned tree consists of 3 predictor variables: proline, OD_dw, and flavanoids. They all have good distributions (besides for the abovementioned small concern over flavanoids in the Grignolino group mentioned above), and have very few outliers.
+The misclassification error rate of the pruned (3 variable) tree is 8/134 (6%), which is similar to the misclassification rate of the unpruned tree (7/134; 5%). This is not a large drop in accuracy (95% to 94%), given that the pruned tree has one less variable
 
 Step 3C: Comparison of pruned models
 Next we compare the accuracy of the pruned model across: pruned tree model on train data, pruned tree model on test data, pruned (3 variable) lda model on train data, and pruned (3 variable) lda model on test data
 ```{r}
-italtest.tree <- tree(as.factor(wine) ~ flavanoids + OD_dw + proline, data = italtest)
-plot(italtest.tree)
-text(italtest.tree, pretty = 1)
-summary(italtest.tree)
+predict.prune.italtest.tree = predict (prune.italtrain.tree, newdata = italtest, type = "class")
+confusionMatrix(as.factor(predict.prune.italtest.tree), as.factor(italtest$wine))
 
 ital_lda5 <- lda(wine ~ flavanoids + OD_dw + proline, data = italtrain)
 ital_lda5
@@ -275,21 +287,75 @@ ital_lda5predict <- predict(ital_lda5)
 confusionMatrix(as.factor(ital_lda5predict$class), as.factor(italtrain$wine), 
                 positive = c("1"))
 
-ital_lda6 <- lda(wine ~ flavanoids + OD_dw + proline, data = italtest)
-ital_lda6
-ital_lda6predict <- predict(ital_lda6)
-confusionMatrix(as.factor(ital_lda6predict$class), as.factor(italtest$wine), 
+test.ital_lda5predict <- predict(ital_lda5, newdata = italtest)
+confusionMatrix(as.factor(test.ital_lda5predict$class), as.factor(italtest$wine), 
                 positive = c("1"))
+
 ```
-When applying the 3 variable (pruned) classification tree to the test data, the variable OD_dw is removed, and decisions are made based on flavanoids and proline alone.
-The misclassification error rate is 4/44 (9%), which is slightly higher than the misclassification rate of this same tree in the train data (8/134; 6%).
+When applying the 3 variable (pruned) classification tree to the test data, the accuracy rate drops from 94% to 82%.
 
 To compare with the equivalent lda model:
-The equivalent lda model (wine type modeled on 3 variables: flavanoids, OD_dw, and proline) had a misclassification error rate of 8/134 (6%) in the train data, compared to 4/44 (9%) in the test data
+The equivalent lda model (wine type modeled on 3 variables: flavanoids, OD_dw, and proline) had a misclassification error rate of 8/134 (6%) in the train data, compared to 7/44 (16%) in the test data. I.e.: Accuracy was 94% in training data, and 84% in test data
 
 Conclusions:
-The pruned (3 variable) classification tree has an error rate of 6% in the train set, which rises to 9% in the test set. This minor difference does not sugeest a large degree of overfitting in the model.
-Furthermore, the lda models produce identical error rates to the tree models, indicating that the results can be replicated with a lda model (i.e.: when cross validation is introduced, both classification trees and lda have similar accuracy rates, and the lda models confirm that overfitting is minor in this model).
+The pruned (3 variable) classification tree has an accuracy rate of 94% in the train set, which drops to 82% in the test set. This difference suggests there has been overfitting in the model.
+Furthermore, the lda model produces an identical accuracy rate to the classifcation tree in the train data (both 94%), but has a slightly better accuracy rate than the classification tree rate in the test data (84% and 82% respectively)
+
+The results of the classification tree model can be replicated quite well with a lda model (i.e.: when cross validation is introduced, both classification trees and lda have similar accuracy rates, and the lda models confirm that a degree of overfitting occurred in the model).
 
 Step 4: Bagging
+Bootstrap aggregation creates multiple trees from multiple bootstrapped samples, and then selects a tree that represents the aggregate of thhis data. This solves the problem of only having one random sample (the train set), which may in itself be biased.
 
+Step 4A: Create a model (using bagging) for the traindata
+```{r}
+set.seed(5)
+ital.bag <- randomForest(as.factor(wine) ~ alcohol + sugar + acidity + tartaric + malic + uronic + pH + ash + alcal_ash + potassium + calcium + magnesium + phosphate + chloride + phenols + flavanoids + nonflavanoids + proanthocyanins + colour + hue + OD_dw + OD_fl + glycerol + butanediol + nitrogen + proline + methanol,
+mtry = 27, importance = TRUE, ntree = 5000,
+data = italtrain)
+```
+Look at the accuracy rate in the test data:
+```{r}
+ital.bag.predict = predict(ital.bag, newdata = italtest)
+confusionMatrix(as.factor(ital.bag.predict), as.factor(italtest$wine))
+```
+The accuracy rate of the model in the test data improved to 91% with bagging, which is a big improvement from the accuracy rate of the pruned model in the test data (82%).
+
+Next we need to see which variables were important in this model
+```{r}
+importance(ital.bag)
+```
+Here you can see the relative importance of factors, in terms of how useful they are for classification (discrimination between types of wine). We can see that alcohol, flavanoids, colour, OD_dw, and proline are mostly important, with hue and OD_fl playing a lesser role, and everything else contributing virtually nothing to the predictive value of the model. THe factors identified as important here overlap with both our initial proposed LDA model, and our first classification tree (before pruning).
+
+To illustrate this visually:
+```{r}
+varImpPlot(ital.bag)
+```
+Both the mean decrease in accuracy and the mean decrease in Gini confirm that the most valuable variables are: proline, flavanoids, OD_dw, colour, hue, alcohol and OD_fl (in roughly that order) 
+
+Step 5: Random Forests
+Overcomes the correlations of the samples and trees (as obtained by bootstrapping)
+
+Step 5A:
+Use random forests to create a model on the train data, then see how accurate that model is in the test data
+```{r}
+italrf.bag <- randomForest(as.factor(wine) ~ alcohol + sugar + acidity + tartaric + malic + uronic + pH + ash + alcal_ash + potassium + calcium + magnesium + phosphate + chloride + phenols + flavanoids + nonflavanoids + proanthocyanins + colour + hue + OD_dw + OD_fl + glycerol + butanediol + nitrogen + proline + methanol,
+mtry = sqrt(27), importance = TRUE,
+data = italtrain)
+predict.italrf.bag <- predict(italrf.bag, newdata = italtest)
+confusionMatrix(as.factor(predict.italrf.bag), as.factor(italtest$wine))
+
+```
+With random forests, the model is 95% accurate, which is a further improvement on the 91% accuracy we obtained with the bagging model.
+
+Step 6: Boosting
+USing information from previous trees (from within the model) to create new ones 
+
+Step 6A:
+Create a boosted model
+```{r}
+italtrain.boost = gbm(wine ~ alcohol + sugar + acidity + tartaric + malic + uronic + pH + ash + alcal_ash + potassium + calcium + magnesium + phosphate + chloride + phenols + flavanoids + nonflavanoids + proanthocyanins + colour + hue + OD_dw + OD_fl + glycerol + butanediol + nitrogen + proline + methanol, data = italtrain, n.trees = 5000 , interaction.depth = 2)
+summary(italtrain.boost) 
+```
+As both the table and the graph (in a less clear way) indicate, the most important variables in the boosted model are: proline, colour, flavanoids, alcohol, OD_dw, hue, glycerol, and OD_fl (in that order). This is almost identical to the random forests model, with the addition of glycerol.
+
+Next we need to check the accuracy of teh model in the test data
