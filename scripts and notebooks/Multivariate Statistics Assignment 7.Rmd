@@ -6,7 +6,7 @@ output: html_notebook
 Load neccessary packges:
 ```{r}
 library(pacman)
-p_load(tidyverse, magrittr, psych, caret, readxl, MASS, tree, Metrics)
+p_load(tidyverse, magrittr, psych, caret, readxl, MASS, tree)
 ```
 Load the data sets:
 Italian wines: italianwines.csv
@@ -16,17 +16,21 @@ italwines <- read.csv("../data/italianwines.csv")
 portwines <- read_excel("../data/Wine_data.xlsx")
 ```
 Italian wines: classify wine region and vintage on the basis of chemical properties of the wine
-Hue: hue of wine
 Wine: geographic origin of the wine
+
 Question 1a:
 Predict italian wine type according to its physical properties
 
-Step 1:
-Descriptive data
+Step 1: Describe the data
+
+Step 1A: Descriptive tables
+First it is neccessary to see how many wine regions there are, as well as how many samples were taken from each region.
 ```{r}
 table(italwines$wine)
 ```
-There are 3 type of wine: Barbera, Barolo, and Grignolino. There is an unequal sampling of each type.
+There are 3 type of wine: Barbera, Barolo, and Grignolino. There is an unequal sampling of each type. 
+
+Next, we look at the descriptive statistics for each variable, shown seperately for each wine type
 ```{r}
 describewine <- describeBy(italwines, group = italwines$wine)
 describewine
@@ -55,7 +59,8 @@ Chloride - skew = 3.35*; kurtosis = 17.48*
 Flavanoids - skew = 1.12; kurtosis = 3.15*
 Glycerol - skew = 1.21; kurtosis = 4.70*
 
-There are 27 potential predictors. A series of boxplots should indicate which variables are most diffrentiated across the wine types, and thus may be useful as differential predictors.
+Step 1B: exploratory boxplots
+There are 27 potential predictors. A series of boxplots should indicate which variables are most diffrentiated across the wine types, and thus may be useful as differential predictors. Boxplots are also useful for checking distribution and outliers.
 ```{r}
 italwines %>%
 ggplot(mapping = aes(y = alcohol, x = wine))+
@@ -140,18 +145,16 @@ ggplot(mapping = aes(y = methanol, x = wine))+
   geom_boxplot()
 ```
 Findings:
-Alcohol appears to be a good predictor. All 3 groups show acceptable distribution, with only a few outliers for the Grignolino type. There is little overlap of the IQRs across the groups
-Sugar does not seem to be a good predictor, as the mean sugar for Barbera and Grignolino is very similar
-Acidity does not seem to be a good predictor, due to the overlap between Barolo and Grignolino. The same applies for tartaric, malic, and uronic - Barolo and Grignolino are very similar on these measures
-pH does not seem like a good predictor, as there is major overlap across the wine types. The same holds true for ash, alcal_ash, potassium, calcium, magnesium, phosphate, chloride
-Phenols appears to be a good predictor. All 3 groups have an acceptable distribution, with only a few outliers for the Barbera and Barolo groups. The means are very different and there is little overlap between IQRs.The same applies to flavanoids (although there is mild kurtosis with Grignolino)
-There is too much overlap with nonflavanoids, proanthocyanins
-Colour appears to be a good predictor (for the reasons listed above)
-There is too much overlap with hue, OD_dw, OD_fl, glycerol, butanediol, nitrogen, proline, and methanol
+Alcohol appears to be a good predictor. All 3 groups show acceptable distribution, with only a few outliers for the Grignolino type. The means are very diffrent, and there is little overlap of the IQRs across the groups.Phenols also appears to be a good predictor, with only a few outliers for the Barbera and Barolo groups.The same applies to flavanoids (although there is mild kurtosis with Grignolino), and color
+
+Sugar does not seem to be a good predictor, as the mean sugar for Barbera and Grignolino is very similar.Acidity also does not seem to be a good predictor, due to the overlap between Barolo and Grignolino. The same applies for tartaric, malic, and uronic - Barolo and Grignolino are very similar on these measures. pH also does not seem like a good predictor, as there is major overlap across the wine types. The same holds true for ash, alcal_ash, potassium, calcium, magnesium, phosphate, chloride, nonflavanoids, proanthocyanins, hue, OD_dw, OD_fl, glycerol, butanediol, nitrogen, proline, and methanol
 
 Summary:
 Alcohol, phenols, flavanoids, and colour appear to be well differentiated acoss the groups, and seem to be good predictors
 
+Step 2: Test a model with LDA (for later comparison to classification tree model)
+
+Step 2A: LDA with all predictors (best possible LDA)
 LDA: for a linear discriminant anlysis I would first run a model with all the prdictors
 ```{r}
 ital_lda1 <- lda(wine ~ alcohol + sugar + acidity + tartaric + malic + uronic + pH + ash + alcal_ash + potassium + calcium + magnesium + phosphate + chloride + phenols + flavanoids + nonflavanoids + proanthocyanins + colour + hue + OD_dw + OD_fl + glycerol + butanediol + nitrogen + proline + methanol, data = italwines)
@@ -168,7 +171,8 @@ From this attempt we can see that the variables are collinear.
 LD function 1 (LD1) is better than LD function 2 (LD2)
 The accuracy is perfect - 100% of wines samples are correctly classified by this model, which is 60% better than the no-information rate (40%). This model is highly significant. Specificity and sensitivity is perfect for all wine types. 
 
-Next we try a LDA with only the variables that seem to be good predictors from the descriptive stats
+Step 2B: LDA with selected variables
+Next we try a LDA with only the variables that seem to be good predictors from the descriptive stats and exploratory boxplots
 ```{r}
 ital_lda2 <- lda(wine ~ alcohol + phenols + flavanoids + colour, data = italwines)
 ital_lda2
@@ -181,10 +185,11 @@ italwinesforsigtest2 <- as.matrix(italwinesforsigtest2)
 summary(manova(italwinesforsigtest2 ~ italwines$wine), test = "Wilks")
 ```
 From the above LDA we can see that the first linear discriminant function (LD1) is much better than the second (LD2)
-The confusion matrix indicates that classification has remained mostly accurate for Barbera, but it has become less accurate for BArolo, and much less accurate Grignolino. 
+The confusion matrix indicates that classification has remained mostly accurate for Barbera, but it has become less accurate for Barolo, and much less accurate Grignolino. This makes sense - as we saw a fair degree of overlap between these two in the exploratory boxplots. 
 The model overall has remarkably become only slightly less accurate (from 100% to 94%), after the removal of 23 predictors! 
 Sensitivity and specificity is still high for all groups (all above 90%), and the model overall is highly significant.
 
+Step 2c: Correct for overfitting - LDA of selected variables with cross validation
 We must still be aware of the problem of overfitting, so ideally we would use test/training groups or some form of cross-validation. LDA has cross-validation built into the function, so let's go with that
 ```{r}
 ital_lda3 <- lda(wine ~ alcohol + phenols + flavanoids + colour, data = italwines, CV = TRUE)
@@ -193,12 +198,98 @@ confusionMatrix(ital_lda3$class, italwines$wine)
 There is a minor drop in accuracy (94% to 93%), but the model is still excellent. 
 This suggests that wine type (Barbera, Barolo, or Grignolino) can be predicted quite accurately by just 4 physical characteristics: alcohol, phenols, flavanoids, and color.
 
-Now to compare this simple approach to other approaches:
-Classifcation tree
+Step 3: Now to compare this simple approach to other approaches:
+
+Step 3A: Classifcation tree
 ```{r}
 italtree1 = tree(as.factor(wine) ~ alcohol + sugar + acidity + tartaric + malic + uronic + pH + ash + alcal_ash + potassium + calcium + magnesium + phosphate + chloride + phenols + flavanoids + nonflavanoids + proanthocyanins + colour + hue + OD_dw + OD_fl + glycerol + butanediol + nitrogen + proline + methanol, data = italwines)
 plot(italtree1)
 text(italtree1, pretty = 1)
 summary(italtree1)
 ```
+The classification tree classifies wine type based on 5 physical characteristics: flavanoids, colour, malic, proline, and alcohol. 
+[I noted that the variable "malic" has a bit of a problematic distributions for the groups: Barolo (skew = 2.03*; kurtosis = 2.84*), and Grignolino (skew = 1.56; kurtosis = 2.21*).There are also a fair amount of outliers for the "malic variable" in the groups: Barolo (8/59 observations are outliers), and Grignolino (5/71 observations are outliers). I would be hesitant to include this variable in the final model. And the variable "flavanoids" has a bit of a problematic distribution for Grignolino (skew = 1.12; kurtosis = 3.15), but on visual inspection of the boxplot it seems fine, and it only has 1 outlier]
+
+The classification tree model (5 physical characteristics: flavanoids, colour, malic, proline, and alcohol) has a fair degree of overlap (3 variables) with the linear discriminant model we arrived at previously (4 physical characteristics: alcohol, phenols, flavanoids, and color).
+The misclassification error rate for the classification tree model is 3/178 (2%), while the misclassification error rate for the proposed lda model (without cross validation) was 11/178 (6%)
+
+The better model is derived from the classification tree, we began with many variables of unknown importance, and it is possible to miss good predictor variables when manually choosing which ones to include in the lda (based off summary stats and exploratory graphs).
+If the lda is rerun with the predictor variables selected by the classification tree:
+```{r}
+ital_lda4 <- lda(wine ~ flavanoids + colour + malic + proline + alcohol, data = italwines)
+ital_lda4
+ital_lda4predict <- predict(ital_lda4)
+confusionMatrix(as.factor(ital_lda4predict$class), as.factor(italwines$wine), 
+                positive = c("1"))
+```
+By using the varibles selected by the classification tree, we can improve our LDA accuracy from 94% (4 variables) to 97% (5 variables). The model is significant, and sensitivity and specificity is high for all wine types.
+
+However, if we compare the misclassification error rate of the classification tree (3/178; with 5 variables) to the misclassification rate of the lda (5/178; with the same 5 variables) - we see that the classification tree makes less classification errors. 
+
+The above section of analysis indicates that:
+a) The classification tree approach leads to a more accurate selection of predictor variables
+b) THe classification tree approach makes less classification errors than a lda model with the same variables
+
+It is important to note that both of these methods are vulnerable to overfitting, and the classification tree may make less errors because of a greater degree of overfitting than the lda. We will have to compare these methods again once some form of cross validation has been introduced
+
+Step 3B: Pruning
+First, we set a seed and split the data into test and training groups
+```{r}
+set.seed(1)
+italtrain <- sample_frac(italwines, 0.75)
+italtest <- setdiff(italwines, italtrain)
+```
+Then, we build a classification tree model on the training data
+```{r}
+italtrain.tree <- tree(as.factor(wine) ~ alcohol + sugar + acidity + tartaric + malic + uronic + pH + ash + alcal_ash + potassium + calcium + magnesium + phosphate + chloride + phenols + flavanoids + nonflavanoids + proanthocyanins + colour + hue + OD_dw + OD_fl + glycerol + butanediol + nitrogen + proline + methanol, data = italtrain)
+plot(italtrain.tree)
+text(italtrain.tree, pretty = 1)
+summary(italtrain.tree)
+```
+Determine alpha through cross validation
+```{r}
+cv.italtrain.tree <- cv.tree(italtrain.tree)
+plot(cv.italtrain.tree$size, cv.italtrain.tree$dev, type = "b")
+```
+We prune the tree according to the alpha we obtained above (alpha = 4, as a classification tree with 4 variables will have the lowest MSE)
+```{r}
+prune.italtrain.tree =prune.tree(italtrain.tree, best = 4)
+plot(prune.italtrain.tree)
+text(prune.italtrain.tree, pretty = 1)
+summary(prune.italtrain.tree)
+```
+The pruned tree consists of 3 predictor variables: proline, OD_dw, and flavanoids. They all have good distributions (besides fro the abovementioned small concern over flavanoids in the Grignolino group mentioned above), and have very few outliers.
+The misclassification error rate of the pruned (3 variable) tree is 8/134 (6%), which is similar to the misclassification rate of the unpruned tree (7/134; 5%). This is not a large drop in accuracy, given that the pruned tree has one less variable
+
+Step 3C: Comparison of pruned models
+Next we compare the accuracy of the pruned model across: pruned tree model on train data, pruned tree model on test data, pruned (3 variable) lda model on train data, and pruned (3 variable) lda model on test data
+```{r}
+italtest.tree <- tree(as.factor(wine) ~ flavanoids + OD_dw + proline, data = italtest)
+plot(italtest.tree)
+text(italtest.tree, pretty = 1)
+summary(italtest.tree)
+
+ital_lda5 <- lda(wine ~ flavanoids + OD_dw + proline, data = italtrain)
+ital_lda5
+ital_lda5predict <- predict(ital_lda5)
+confusionMatrix(as.factor(ital_lda5predict$class), as.factor(italtrain$wine), 
+                positive = c("1"))
+
+ital_lda6 <- lda(wine ~ flavanoids + OD_dw + proline, data = italtest)
+ital_lda6
+ital_lda6predict <- predict(ital_lda6)
+confusionMatrix(as.factor(ital_lda6predict$class), as.factor(italtest$wine), 
+                positive = c("1"))
+```
+When applying the 3 variable (pruned) classification tree to the test data, the variable OD_dw is removed, and decisions are made based on flavanoids and proline alone.
+The misclassification error rate is 4/44 (9%), which is slightly higher than the misclassification rate of this same tree in the train data (8/134; 6%).
+
+To compare with the equivalent lda model:
+The equivalent lda model (wine type modeled on 3 variables: flavanoids, OD_dw, and proline) had a misclassification error rate of 8/134 (6%) in the train data, compared to 4/44 (9%) in the test data
+
+Conclusions:
+The pruned (3 variable) classification tree has an error rate of 6% in the train set, which rises to 9% in the test set. This minor difference does not sugeest a large degree of overfitting in the model.
+Furthermore, the lda models produce identical error rates to the tree models, indicating that the results can be replicated with a lda model (i.e.: when cross validation is introduced, both classification trees and lda have similar accuracy rates, and the lda models confirm that overfitting is minor in this model).
+
+Step 4: Bagging
 
